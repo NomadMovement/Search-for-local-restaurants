@@ -3,126 +3,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>デバッグ版：飲食店検索</title>
+    <title>ご近所グルメ検索</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f0f2f5; }
         .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        button { padding: 12px 20px; border-radius: 25px; border: none; background: white; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        #status-log { background: #333; color: #0f0; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; margin-bottom: 20px; min-height: 40px; }
+        button { padding: 12px 20px; border-radius: 25px; border: none; background: #4285F4; color: white; cursor: pointer; font-weight: bold; }
         .shop-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         .shop-image { width: 100%; height: 200px; object-fit: cover; border-radius: 8px; }
-        .map-link { display: block; text-align: center; padding: 12px; background: #4285F4; color: white; text-decoration: none; border-radius: 8px; margin-top: 10px; font-weight: bold; }
+        .map-link { display: block; text-align: center; padding: 12px; background: #34A853; color: white; text-decoration: none; border-radius: 8px; margin-top: 10px; font-weight: bold; }
+        #status-log { background: #eee; padding: 10px; border-radius: 5px; font-size: 12px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>📍 飲食店検索（診断機能付）</h1>
+    <h1>📍 飲食店検索</h1>
     
-    <div id="status-log">システム準備中...</div>
+    <div id="status-log">ボタンを押して検索を開始してください</div>
 
     <div class="controls">
-        <button onclick="getNearbyShops('rating')">⭐ 評価順で検索</button>
-        <button onclick="getNearbyShops('user_ratings_total')">💬 口コミ数順で検索</button>
+        <button onclick="startSearch('rating')">⭐ 評価順で検索</button>
+        <button onclick="startSearch('user_ratings_total')">💬 口コミ数順で検索</button>
     </div>
 
     <div id="results"></div>
 
     <script>
-        function log(msg) {
-            const logEl = document.getElementById('status-log');
-            logEl.innerHTML += `<div>> ${msg}</div>`;
-            console.log(msg);
+        let service;
+
+        // API読み込み完了時に呼ばれる（何もしなくてもOKな状態にする）
+        function initMap() {
+            document.getElementById('status-log').innerText = "システム準備完了。ボタンを押してください。";
         }
 
-        // Google Mapsが読み込まれたか確認
-        window.initMap = function() {
-            log("Google Maps API の読み込みに成功しました。");
-        };
-
-        function getNearbyShops(sortBy) {
+        function startSearch(sortBy) {
+            const log = document.getElementById('status-log');
             const container = document.getElementById('results');
-            log("検索を開始します...");
-
-            if (!navigator.geolocation) {
-                log("エラー: ブラウザが位置情報に対応していません。");
-                return;
-            }
-
-            log("現在地を取得中...（ブラウザの許可ダイアログを確認してください）");
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    log(`位置取得成功: ${lat}, ${lng}`);
-
-                    const userLoc = new google.maps.LatLng(lat, lng);
-                    const mapDiv = document.createElement('div');
-                    const map = new google.maps.Map(mapDiv, { center: userLoc, zoom: 15 });
-                    const service = new google.maps.places.PlacesService(map);
-
-                    const request = {
-                        location: userLoc,
-                        radius: 1000,
-                        type: ['restaurant']
-                    };
-
-                    log("Google Places API へリクエスト送信中...");
-
-                    service.nearbySearch(request, (results, status) => {
-                        log(`APIレスポンスステータス: ${status}`);
-                        if (status === google.maps.places.PlacesServiceStatus.OK) {
-                            log(`${results.length}件のお店が見つかりました。`);
-                            displayResults(results, sortBy, service);
-                        } else if (status === "REQUEST_DENIED") {
-                            log("エラー: APIキーが無効か、制限の設定が間違っています。");
-                        } else {
-                            log("エラー: お店が見つからないか、APIエラーです。");
-                        }
-                    });
-                },
-                (error) => {
-                    log(`位置情報エラー (${error.code}): ${error.message}`);
-                    if (error.code === 1) log("原因: 位置情報の利用が拒否されました。ブラウザの設定で許可してください。");
-                },
-                { timeout: 10000 }
-            );
-        }
-
-        function displayResults(results, sortBy, service) {
-            const container = document.getElementById('results');
+            log.innerText = "現在地を取得中...";
             container.innerHTML = "";
 
-            results.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+            navigator.geolocation.getCurrentPosition((position) => {
+                const userLoc = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                // API実行用の仮想マップ
+                const map = new google.maps.Map(document.createElement('div'), { center: userLoc, zoom: 15 });
+                service = new google.maps.places.PlacesService(map);
 
-            results.forEach(place => {
-                const photoUrl = place.photos ? place.photos[0].getUrl({maxWidth: 600}) : 'https://via.placeholder.com/600x400?text=No+Image';
-                const card = document.createElement('div');
-                card.className = 'shop-card';
-                
-                // 正しい詳細URLの生成
-                const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}`;
+                const request = {
+                    location: userLoc,
+                    radius: 1000,
+                    type: ['restaurant']
+                };
 
-                card.innerHTML = `
-                    <img src="${photoUrl}" class="shop-image">
-                    <div class="shop-info">
-                        <h3>${place.name}</h3>
-                        <p>⭐ ${place.rating || '---'} (${place.user_ratings_total || 0}件)</p>
-                        <div id="detail-${place.place_id}" style="font-size:0.85rem; color:#555; background:#f9f9f9; padding:8px; border-radius:4px;">口コミ読み込み中...</div>
-                        <a href="${mapUrl}" target="_blank" class="map-link">Googleマップで詳細を見る</a>
-                    </div>
-                `;
-                container.appendChild(card);
-                
-                // 詳細（口コミ）取得
-                service.getDetails({ placeId: place.place_id, fields: ['reviews'] }, (detail, status) => {
-                    const detailEl = document.getElementById(`detail-${place.place_id}`);
-                    if (status === google.maps.places.PlacesServiceStatus.OK && detail.reviews) {
-                        detailEl.innerText = "おすすめ料理: " + (detail.reviews[0].text.substring(0, 40) + "...");
+                log.innerText = "お店を探しています...";
+
+                service.nearbySearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        log.innerText = results.length + "件見つかりました。";
+                        
+                        // ソート
+                        results.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+
+                        results.forEach(place => {
+                            const photo = place.photos ? place.photos[0].getUrl({maxWidth: 400}) : "https://via.placeholder.com/400x200";
+                            const card = `
+                                <div class="shop-card">
+                                    <img src="${photo}" class="shop-image">
+                                    <h3>${place.name}</h3>
+                                    <p>⭐ ${place.rating || '---'} (${place.user_ratings_total || 0}件)</p>
+                                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}" target="_blank" class="map-link">Googleマップで見る</a>
+                                </div>
+                            `;
+                            container.innerHTML += card;
+                        });
                     } else {
-                        detailEl.innerText = "詳細データはマップで確認してください。";
+                        log.innerText = "エラー: " + status;
                     }
                 });
+            }, (error) => {
+                log.innerText = "位置情報の取得に失敗しました。許可設定を確認してください。";
             });
         }
     </script>
