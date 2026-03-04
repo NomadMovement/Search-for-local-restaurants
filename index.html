@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ご近所グルメ検索</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f9f9f9; }
+        .shop-card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .map-button { 
+            display: inline-block; padding: 10px 20px; 
+            background-color: #4285F4; color: white; 
+            text-decoration: none; border-radius: 5px; font-weight: bold;
+        }
+        #results { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+    <h1>📍 現在地近くの飲食店</h1>
+    <button onclick="getNearbyShops('rating')">評価が高い順で探す</button>
+    <button onclick="getNearbyShops('prominence')">おすすめ順で探す</button>
+
+    <div id="results">ここに結果が表示されます</div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC0FSN1f4kkBbpfnDItZVQaEeaGHHus78A&libraries=places"></script>
+    
+    <script>
+        let map;
+        let service;
+
+        function getNearbyShops(sortBy) {
+            if (!navigator.geolocation) {
+                alert("位置情報がサポートされていません");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition((position) => {
+                const userLoc = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
+                
+                // 非表示のマップ要素（Places API実行に必要）
+                map = new google.maps.Map(document.createElement('div'), { center: userLoc, zoom: 15 });
+
+                const request = {
+                    location: userLoc,
+                    radius: '1000', // 1km以内
+                    type: ['restaurant']
+                };
+
+                service = new google.maps.places.PlacesService(map);
+                service.nearbySearch(request, (results, status) => {
+                    if (status === google.maps.places.PlacesServiceStatus.OK) {
+                        displayResults(results, sortBy);
+                    }
+                });
+            });
+        }
+
+        function displayResults(results, sortBy) {
+            const container = document.getElementById('results');
+            container.innerHTML = "";
+
+            // ソート処理 (簡易的な評価順)
+            if (sortBy === 'rating') {
+                results.sort((a, b) => b.rating - a.rating);
+            }
+
+            results.forEach(place => {
+                const photoUrl = place.photos ? place.photos[0].getUrl({maxWidth: 300}) : 'https://via.placeholder.com/300x200?text=No+Image';
+                
+                const card = `
+                    <div class="shop-card">
+                        <img src="${photoUrl}" style="width:100%; border-radius:8px;">
+                        <h3>${place.name}</h3>
+                        <p>⭐ 評価: ${place.rating || 'なし'} (${place.user_ratings_total || 0}件)</p>
+                        <p>🍴 ジャンル: ${place.types[0]}</p>
+                        <a href="https://www.google.com/maps/search/?api=1&query=Google&query_place_id=${place.place_id}" 
+                           target="_blank" class="map-button">Googleマップで詳しく見る</a>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+    </script>
+</body>
+</html>
