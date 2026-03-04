@@ -3,173 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ご近所グルメ・スレッド検索</title>
+    <title>ご近所グルメ検索</title>
     <style>
-        :root { --google-blue: #4285F4; --google-red: #EA4335; --google-yellow: #FBBC05; --google-green: #34A853; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; color: #333; }
-        h1 { text-align: center; color: var(--google-blue); font-size: 1.5rem; }
-        
-        .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        button { 
-            padding: 10px 15px; border: none; border-radius: 20px; cursor: pointer;
-            background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-weight: bold; transition: 0.3s;
-        }
-        button:hover { background: var(--google-blue); color: white; }
+        :root { --google-blue: #4285F4; --google-green: #34A853; }
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; }
+        .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        button { padding: 12px 20px; border: none; border-radius: 25px; cursor: pointer; background: white; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         button.active { background: var(--google-blue); color: white; }
-
         #results { max-width: 600px; margin: 0 auto; }
-        .shop-card { 
-            background: white; border-radius: 12px; overflow: hidden; 
-            margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); animation: fadeIn 0.5s ease;
-        }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .shop-image { width: 100%; height: 200px; object-fit: cover; background: #ddd; }
+        .shop-card { background: white; border-radius: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .shop-image { width: 100%; height: 200px; object-fit: cover; background: #eee; }
         .shop-info { padding: 15px; }
-        .shop-name { margin: 0 0 8px 0; font-size: 1.25rem; }
-        .shop-meta { font-size: 0.9rem; color: #666; margin-bottom: 10px; }
-        
-        /* 口コミスレッド風デザイン */
-        .recommend-thread { 
-            background: #f8f9fa; border-left: 4px solid var(--google-green);
-            padding: 10px; margin: 10px 0; border-radius: 4px; font-size: 0.85rem;
-        }
-        .recommend-label { font-weight: bold; color: var(--google-green); display: block; margin-bottom: 5px; }
-
-        .map-link { 
-            display: block; text-align: center; padding: 12px; margin-top: 10px;
-            background-color: var(--google-blue); color: white; 
-            text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem;
-        }
-        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 5px; }
-        .open { background: #e6f4ea; color: #1e8e3e; }
-        .closed { background: #fce8e6; color: #d93025; }
+        .recommend-thread { background: #f8f9fa; border-left: 4px solid var(--google-green); padding: 10px; margin: 10px 0; font-size: 0.85rem; }
+        .map-link { display: block; text-align: center; padding: 12px; background: var(--google-blue); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <h1>📍 ご近所グルメ検索</h1>
-
     <div class="controls">
-        <button id="btn-rating" onclick="getNearbyShops('rating')">⭐ 評価が高い順</button>
-        <button id="btn-count" onclick="getNearbyShops('user_ratings_total')">💬 口コミが多い順</button>
+        <button id="btn-rating" onclick="getNearbyShops('rating')">⭐ 評価順</button>
+        <button id="btn-count" onclick="getNearbyShops('user_ratings_total')">💬 口コミ数順</button>
     </div>
 
-    <div id="results">
-        <p style="text-align: center; color: #888;">上のボタンを押して検索を開始してください</p>
-    </div>
+    <div id="results"><p style="text-align:center; color:#888;">ボタンを押して検索してください</p></div>
 
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDhWevr9rxHvxEi5DFon0j9gBuspEP4AM0&libraries=places"></script>
     
     <script>
-        let map;
-        let service;
-        let currentResults = [];
+        let map, service;
 
         function getNearbyShops(sortBy) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = "<p style='text-align:center;'>検索中...</p>";
+            const container = document.getElementById('results');
+            container.innerHTML = "<p style='text-align:center;'>現在地を取得して検索中...</p>";
 
-            // ボタンのスタイル切り替え
+            // ボタンの見た目変更
             document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
             if(sortBy === 'rating') document.getElementById('btn-rating').classList.add('active');
             if(sortBy === 'user_ratings_total') document.getElementById('btn-count').classList.add('active');
 
             if (!navigator.geolocation) {
-                alert("位置情報がサポートされていません");
+                container.innerHTML = "お使いのブラウザは位置情報に対応していません。";
                 return;
             }
 
-            navigator.geolocation.getCurrentPosition((position) => {
-                const userLoc = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
-                map = new google.maps.Map(document.createElement('div'), { center: userLoc, zoom: 15 });
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const userLoc = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    console.log("位置取得成功:", userLoc);
 
-                const request = {
-                    location: userLoc,
-                    radius: '800', // 約800m以内
-                    type: ['restaurant']
-                };
+                    // API実行用のダミーマップ
+                    const mapDiv = document.createElement('div');
+                    map = new google.maps.Map(mapDiv, { center: userLoc, zoom: 15 });
+                    service = new google.maps.places.PlacesService(map);
 
-                service = new google.maps.places.PlacesService(map);
-                service.nearbySearch(request, (results, status) => {
-                    if (status === google.maps.places.PlacesServiceStatus.OK) {
-                        currentResults = results;
-                        displayResults(sortBy);
-                    } else {
-                        resultsDiv.innerHTML = "<p style='text-align:center;'>お店が見つかりませんでした。</p>";
-                    }
-                });
-            }, () => {
-                alert("位置情報の取得に失敗しました。設定を確認してください。");
-            });
+                    const request = {
+                        location: userLoc,
+                        radius: 1000,
+                        type: ['restaurant']
+                    };
+
+                    service.nearbySearch(request, (results, status) => {
+                        console.log("APIステータス:", status);
+                        if (status === google.maps.places.PlacesServiceStatus.OK) {
+                            displayResults(results, sortBy);
+                        } else {
+                            container.innerHTML = `検索に失敗しました。ステータス: ${status}`;
+                        }
+                    });
+                },
+                (error) => {
+                    console.error("位置情報エラー:", error);
+                    container.innerHTML = "位置情報の取得を許可してください。";
+                }
+            );
         }
 
-        function displayResults(sortBy) {
+        function displayResults(results, sortBy) {
             const container = document.getElementById('results');
             container.innerHTML = "";
 
-            // 指定された条件でソート
-            const sortedData = [...currentResults].sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
+            results.sort((a, b) => (b[sortBy] || 0) - (a[sortBy] || 0));
 
-            sortedData.forEach(place => {
-                // 画像の取得（ない場合はプレースホルダー）
-                const photoUrl = place.photos 
-                    ? place.photos[0].getUrl({maxWidth: 600, maxHeight: 400}) 
-                    : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&q=80';
-                
-                // 営業状況
-                const isOpen = place.opening_hours ? (place.opening_hours.isOpen() ? '<span class="status-badge open">営業中</span>' : '<span class="status-badge closed">準備中</span>') : '';
-
-                // 店舗カードの作成
+            results.forEach(place => {
+                const photoUrl = place.photos ? place.photos[0].getUrl({maxWidth: 600}) : 'https://via.placeholder.com/600x400?text=No+Image';
                 const card = document.createElement('div');
                 card.className = 'shop-card';
                 card.innerHTML = `
-                    <img src="${photoUrl}" class="shop-image" alt="${place.name}">
+                    <img src="${photoUrl}" class="shop-image">
                     <div class="shop-info">
-                        <h3 class="shop-name">${place.name} ${isOpen}</h3>
-                        <div class="shop-meta">
-                            <span>⭐ ${place.rating || '---'}</span> 
-                            <span style="margin-left:10px;">💬 ${place.user_ratings_total || 0}件の口コミ</span>
-                        </div>
-                        
+                        <h3>${place.name}</h3>
+                        <p>⭐ ${place.rating || '---'} (${place.user_ratings_total || 0}件)</p>
                         <div class="recommend-thread">
-                            <span class="recommend-label">✨ おすすめのポイント (予測)</span>
-                            <p id="rec-${place.place_id}">詳細を読み込み中...</p>
+                            <strong>✨ おすすめ料理のヒント</strong><br>
+                            <span id="detail-${place.place_id}">読み込み中...</span>
                         </div>
-
                         <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${place.place_id}" 
-                           target="_blank" class="map-link">Googleマップで詳細・混雑状況を見る</a>
+                           target="_blank" class="map-link">Googleマップで詳細を見る</a>
                     </div>
                 `;
                 container.appendChild(card);
-
-                // 各店舗の詳細情報を取得して「おすすめ料理」的な要素を表示
-                fetchPlaceDetails(place.place_id);
+                fetchDetails(place.place_id);
             });
         }
 
-        function fetchPlaceDetails(placeId) {
-            const request = {
-                placeId: placeId,
-                fields: ['reviews']
-            };
-
-            service.getDetails(request, (place, status) => {
-                const recElement = document.getElementById(`rec-${placeId}`);
+        function fetchDetails(id) {
+            service.getDetails({ placeId: id, fields: ['reviews'] }, (place, status) => {
+                const el = document.getElementById(`detail-${id}`);
                 if (status === google.maps.places.PlacesServiceStatus.OK && place.reviews) {
-                    // 口コミから料理名っぽいキーワードを探す簡易ロジック
-                    const keywords = ["ラーメン", "パスタ", "ランチ", "肉", "魚", "デザート", "定食", "おつまみ", "酒"];
-                    let found = [];
-                    place.reviews.forEach(r => {
-                        keywords.forEach(k => { if(r.text.includes(k)) found.push(k); });
-                    });
-                    
-                    const uniqueKeywords = [...new Set(found)].slice(0, 3);
-                    recElement.innerText = uniqueKeywords.length > 0 
-                        ? `口コミでは「${uniqueKeywords.join('、')}」などが話題です！` 
-                        : "落ち着いた雰囲気で評判のお店です。";
+                    const keywords = ["ラーメン", "肉", "パスタ", "カレー", "デザート", "ビール", "定食"];
+                    const found = keywords.filter(k => place.reviews.some(r => r.text.includes(k)));
+                    el.innerText = found.length > 0 ? found.join('、') + "が人気のようです！" : "評価の高いお店です。";
                 } else {
-                    recElement.innerText = "最新の口コミを確認してみましょう。";
+                    el.innerText = "詳細はマップでチェック！";
                 }
             });
         }
